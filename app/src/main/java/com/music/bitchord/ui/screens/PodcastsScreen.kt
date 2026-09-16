@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,8 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,12 +61,6 @@ import com.music.bitchord.data.podcasts.PodcastResult
 import com.music.bitchord.data.podcasts.SavedPodcast
 import kotlinx.coroutines.launch
 
-/**
- * Podcasts screen with search and library tabs.
- *
- * Search tab: search and browse iTunes podcasts.
- * Library tab: saved podcasts with quick access.
- */
 @Composable
 fun PodcastsScreen(
     onOpenPodcast: (String, String, String?, String?) -> Unit = { _, _, _, _ -> },
@@ -75,31 +69,59 @@ fun PodcastsScreen(
     val tabs = listOf("Browse", "Library")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal) },
-                    icon = {
-                        Icon(
-                            if (index == 0) Icons.Rounded.Mic else Icons.Rounded.Bookmark,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    },
-                )
+        // Content area fills available space
+        Box(modifier = Modifier.weight(1f)) {
+            when (selectedTab) {
+                0 -> BrowseTab(onOpenPodcast)
+                1 -> LibraryTab(onOpenPodcast)
             }
         }
 
-        when (selectedTab) {
-            0 -> BrowseTab(onOpenPodcast)
-            1 -> LibraryTab(onOpenPodcast)
+        // Tab bar at the bottom
+        Surface(
+            tonalElevation = 3.dp,
+            shadowElevation = 8.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    val selected = selectedTab == index
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                else MaterialTheme.colorScheme.surface
+                            )
+                            .clickable { selectedTab = index }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (index == 0) Icons.Rounded.Mic else Icons.Rounded.Bookmark,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -195,7 +217,7 @@ private fun BrowseTab(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(bottom = 100.dp),
+                contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 items(results, key = { it.itunesId }) { podcast ->

@@ -1286,16 +1286,8 @@ fun SettingsScreen(
                     append("GitHub")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://instagram.com/nikkk.exe", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://instagram.com", linkStyles)) {
                     append("Instagram")
-                }
-                append("  ")
-                withLink(LinkAnnotation.Url("https://discord.gg/pDdKfrdHY6", linkStyles)) {
-                    append("Discord")
-                }
-                append("  ")
-                withLink(LinkAnnotation.Url("https://bitchord.kushagrasingh.in/", linkStyles)) {
-                    append("Website")
                 }
             },
             style = MaterialTheme.typography.labelSmall,

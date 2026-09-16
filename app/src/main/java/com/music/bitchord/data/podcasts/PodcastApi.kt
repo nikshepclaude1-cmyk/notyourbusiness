@@ -145,7 +145,7 @@ object PodcastApi {
             val response = Http.client.newCall(request).execute()
             val body = response.body?.string() ?: return@withContext emptyList()
             val feedResponse = json.decodeFromString<RssTopFeed>(body)
-            feedResponse.feed.results.map { it.toPodcast() }
+            feedResponse.feed.entry.map { it.toPodcast() }
         } catch (e: Exception) {
             Log.e(TAG, "RSS top podcasts failed: ${e.message}")
             emptyList()
