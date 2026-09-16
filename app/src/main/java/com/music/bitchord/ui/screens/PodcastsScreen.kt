@@ -16,22 +16,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,9 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -58,338 +49,363 @@ import coil3.request.crossfade
 import com.music.bitchord.data.podcasts.PodcastApi
 import com.music.bitchord.data.podcasts.PodcastLibrary
 import com.music.bitchord.data.podcasts.PodcastResult
-import com.music.bitchord.data.podcasts.SavedPodcast
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * Podcast categories matching the reference implementation.
+ * Each category has a list of search queries; a random one is picked per fetch.
+ */
+private val PODCAST_CATEGORIES = listOf(
+    PodcastCategory("Top in India", "Most popular podcasts right now", listOf("Raj Shamani", "WTF is with Nikhil Kamath", "The Ranveer Show", "Finshots Daily", "Paisa Vaisa", "Cyrus Says", "The Seen and the Unseen", "The Musafir Stories", "The Ken")),
+    PodcastCategory("Top in USA", "Trending across the globe", listOf("The Daily", "This American Life", "Huberman Lab", "The Joe Rogan Experience", "Business Wars", "The Ezra Klein Show", "SmartLess", "Call Her Daddy", "Freakonomics Radio")),
+    PodcastCategory("Business & Finance", "Market insights and money talks", listOf("Business podcast", "Finance podcast", "Investing podcast", "Planet Money")),
+    PodcastCategory("Startups & Founders", "Stories of building companies", listOf("Startup podcast", "Founder interviews", "Venture Capital podcast", "First Principles")),
+    PodcastCategory("Technology", "Tech news and deep dives", listOf("Technology podcast", "Tech news", "Hard Fork", "Lex Fridman")),
+    PodcastCategory("Health & Science", "Wellness and discoveries", listOf("Health podcast", "Science podcast", "Huberman Lab", "Peter Attia")),
+    PodcastCategory("Self-Improvement", "Become a better you", listOf("Self improvement podcast", "Motivation", "On Purpose with Jay Shetty")),
+    PodcastCategory("News & Politics", "Stay informed", listOf("News podcast", "Daily news", "The Daily", "Up First")),
+    PodcastCategory("Culture & Society", "Conversations shaping our world", listOf("Culture podcast", "Society podcast", "The Ezra Klein Show")),
+    PodcastCategory("Comedy", "Laugh out loud", listOf("Comedy podcast", "Standup comedy")),
+    PodcastCategory("Deep-Dive Interviews", "Long-form conversations", listOf("Interview podcast", "The Tim Ferriss Show", "Long-form podcast")),
+)
+
+private data class PodcastCategory(
+    val title: String,
+    val subtitle: String,
+    val queries: List<String>,
+)
+
+private data class PodcastRow(
+    val title: String,
+    val subtitle: String,
+    val items: List<PodcastResult>,
+)
 
 @Composable
 fun PodcastsScreen(
     onOpenPodcast: (String, String, String?, String?) -> Unit = { _, _, _, _ -> },
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Browse", "Library")
+    val scope = rememberCoroutineScope()
+    var rows by remember { mutableStateOf<List<PodcastRow>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var loadedCount by remember { mutableIntStateOf(0) }
+    var loadingMore by remember { mutableStateOf(false) }
+    val savedPodcasts by PodcastLibrary.savedPodcasts.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Content area fills available space
-        Box(modifier = Modifier.weight(1f)) {
-            when (selectedTab) {
-                0 -> BrowseTab(onOpenPodcast)
-                1 -> LibraryTab(onOpenPodcast)
-            }
+    // Load first 3 categories on mount
+    LaunchedEffect(Unit) {
+        loading = true
+        val initialRows = fetchCategoryRows(0, 3)
+        rows = initialRows
+        loadedCount = 3
+        loading = false
+    }
+
+    fun loadMore() {
+        if (loadingMore || loadedCount >= PODCAST_CATEGORIES.size) return
+        loadingMore = true
+        scope.launch {
+            val moreRows = fetchCategoryRows(loadedCount, 3)
+            rows = rows + moreRows
+            loadedCount += 3
+            loadingMore = false
         }
+    }
 
-        // Tab bar at the bottom
-        Surface(
-            tonalElevation = 3.dp,
-            shadowElevation = 8.dp,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 100.dp),
+    ) {
+        // Header
+        item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                tabs.forEachIndexed { index, title ->
-                    val selected = selectedTab == index
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                else MaterialTheme.colorScheme.surface
-                            )
-                            .clickable { selectedTab = index }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Icon(
-                            imageVector = if (index == 0) Icons.Rounded.Mic else Icons.Rounded.Bookmark,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BrowseTab(
-    onOpenPodcast: (String, String, String?, String?) -> Unit,
-) {
-    val scope = rememberCoroutineScope()
-    val focusManager = LocalFocusManager.current
-    var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<PodcastResult>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var searched by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        loading = true
-        results = PodcastApi.topPodcasts()
-        loading = false
-        searched = true
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-    ) {
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("Search podcasts") },
-            leadingIcon = { Icon(Icons.Rounded.Search, null) },
-            trailingIcon = {
-                if (query.isNotBlank()) {
-                    IconButton(onClick = { query = ""; results = emptyList(); searched = false }) {
-                        Icon(Icons.Rounded.Close, "Clear")
-                    }
-                }
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = {
-                focusManager.clearFocus()
-                if (query.isNotBlank()) {
-                    scope.launch {
-                        loading = true
-                        results = PodcastApi.search(query)
-                        loading = false
-                        searched = true
-                    }
-                }
-            }),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            ),
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        if (loading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-        } else if (results.isEmpty() && searched) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(
-                    Icons.Rounded.Mic,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(48.dp),
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = if (query.isBlank()) "No podcasts found" else "No results for \"$query\"",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                items(results, key = { it.itunesId }) { podcast ->
-                    PodcastRow(
-                        podcast = podcast,
-                        onClick = {
-                            onOpenPodcast(podcast.title, podcast.feedUrl ?: podcast.webUrl ?: "", podcast.artworkUrl, podcast.itunesId)
-                        },
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Mic,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    text = "Podcasts",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+        }
+
+        // Saved podcasts section
+        if (savedPodcasts.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Your Saved Podcasts",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                )
+            }
+            item {
+                PodcastHorizontalRow(
+                    podcasts = savedPodcasts.map { it.toPodcastResult() },
+                    onOpenPodcast = onOpenPodcast,
+                )
+            }
+        }
+
+        // Loading skeleton
+        if (loading) {
+            items(3) { rowIdx ->
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .width(200.dp)
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(260.dp)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        repeat(5) {
+                            Column {
+                                Box(
+                                    modifier = Modifier
+                                        .size(140.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(100.dp)
+                                        .height(14.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Category rows
+        if (!loading) {
+            itemsIndexed(rows) { _, row ->
+                CategoryRow(
+                    title = row.title,
+                    subtitle = row.subtitle,
+                    podcasts = row.items,
+                    onOpenPodcast = onOpenPodcast,
+                )
+            }
+        }
+
+        // Load more button
+        if (!loading && loadedCount < PODCAST_CATEGORIES.size && !loadingMore) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Button(
+                        onClick = { loadMore() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background,
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                    ) {
+                        Text(
+                            text = "Load More Categories",
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Loading more indicator
+        if (loadingMore) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
             }
         }
     }
 }
 
 @Composable
-private fun LibraryTab(
+private fun CategoryRow(
+    title: String,
+    subtitle: String,
+    podcasts: List<PodcastResult>,
     onOpenPodcast: (String, String, String?, String?) -> Unit,
 ) {
-    val savedPodcasts by PodcastLibrary.savedPodcasts.collectAsState()
-
-    if (savedPodcasts.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 48.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    Icons.Rounded.Headphones,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(48.dp),
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "No saved podcasts",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Save podcasts from the Browse tab",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                )
-            }
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(savedPodcasts, key = { it.itunesId }) { podcast ->
-                SavedPodcastRow(
-                    podcast = podcast,
-                    onClick = {
-                        onOpenPodcast(podcast.title, podcast.feedUrl ?: "", podcast.artworkUrl, podcast.itunesId)
-                    },
-                    onRemove = { PodcastLibrary.remove(podcast.itunesId) },
-                )
-            }
+        Spacer(Modifier.height(12.dp))
+        PodcastHorizontalRow(
+            podcasts = podcasts,
+            onOpenPodcast = onOpenPodcast,
+        )
+    }
+}
+
+@Composable
+private fun PodcastHorizontalRow(
+    podcasts: List<PodcastResult>,
+    onOpenPodcast: (String, String, String?, String?) -> Unit,
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        items(podcasts, key = { it.itunesId }) { podcast ->
+            PodcastCard(
+                podcast = podcast,
+                onClick = {
+                    onOpenPodcast(
+                        podcast.title,
+                        podcast.feedUrl ?: podcast.webUrl ?: "",
+                        podcast.artworkUrl,
+                        podcast.itunesId,
+                    )
+                },
+            )
         }
     }
 }
 
 @Composable
-private fun PodcastRow(
+private fun PodcastCard(
     podcast: PodcastResult,
     onClick: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .width(140.dp)
+            .clickable(onClick = onClick),
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
-                .data(podcast.artworkAt(120))
+                .data(podcast.artworkAt(300))
                 .crossfade(true)
                 .build(),
             contentDescription = podcast.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(64.dp)
+                .size(140.dp)
                 .clip(RoundedCornerShape(10.dp)),
         )
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = podcast.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.W600,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = podcast.author,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (podcast.genre != null) {
-                Text(
-                    text = podcast.genre,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = podcast.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.W600,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = podcast.author,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
-@Composable
-private fun SavedPodcastRow(
-    podcast: SavedPodcast,
-    onClick: () -> Unit,
-    onRemove: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(podcast.artworkUrl?.replace("600x600", "120x120"))
-                .crossfade(true)
-                .build(),
-            contentDescription = podcast.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(64.dp)
-                .clip(RoundedCornerShape(10.dp)),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = podcast.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.W600,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (podcast.author.isNotBlank()) {
-                Text(
-                    text = podcast.author,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (podcast.genre != null) {
-                Text(
-                    text = podcast.genre,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
+/**
+ * Fetch podcast rows for given category range. Matches the reference fetchRows() logic.
+ * For IN/US categories: search top 5 queries, merge results.
+ * For query categories: pick random query, search both IN and US.
+ */
+private suspend fun fetchCategoryRows(startIndex: Int, count: Int): List<PodcastRow> {
+    return withContext(Dispatchers.IO) {
+        val categories = PODCAST_CATEGORIES.drop(startIndex).take(count)
+
+        categories.mapNotNull { cat ->
+            try {
+                val results = mutableListOf<PodcastResult>()
+
+                if (cat.title == "Top in India" || cat.title == "Top in USA") {
+                    val country = if (cat.title == "Top in India") "IN" else "US"
+                    val queries = cat.queries.take(5)
+                    for (query in queries) {
+                        val searchResults = PodcastApi.search(query, country = country, limit = 5)
+                        results.addAll(searchResults)
+                    }
+                } else {
+                    val query = cat.queries.random()
+                    val inResults = PodcastApi.search(query, country = "IN", limit = 10)
+                    val usResults = PodcastApi.search(query, country = "US", limit = 10)
+                    results.addAll(inResults)
+                    results.addAll(usResults)
+                }
+
+                // Deduplicate by collectionId
+                val unique = results.distinctBy { it.itunesId }.take(15)
+
+                if (unique.isNotEmpty()) {
+                    PodcastRow(
+                        title = cat.title,
+                        subtitle = cat.subtitle,
+                        items = unique,
+                    )
+                } else null
+            } catch (e: Exception) {
+                null
             }
         }
     }

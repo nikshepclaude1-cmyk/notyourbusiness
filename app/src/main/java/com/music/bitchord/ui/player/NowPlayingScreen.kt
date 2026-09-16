@@ -111,6 +111,7 @@ import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Translate
@@ -3186,6 +3187,11 @@ fun NowPlayingScreen(
             val transitionWindow by AppSettings.smartTransitionWindow.collectAsStateWithLifecycle()
             // SHORTS / MAX mode toggle — restream is handled in PlaybackService.
             val playbackMode by AppSettings.playbackMode.collectAsStateWithLifecycle()
+            // Podcast detection: podcast episodes have HTTP(S) URLs as videoId
+            val isPodcast = song.videoId.startsWith("http")
+            // Podcast playback speed control
+            val playbackSpeed by AppSettings.playbackSpeed.collectAsStateWithLifecycle()
+            val podcastSpeedOptions = listOf(0.5f, 1f, 1.25f, 1.5f, 2f)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3316,16 +3322,27 @@ fun NowPlayingScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TransportGlyph(
-                    icon = R.drawable.ic_player_previous,
-                    contentDescription = stringResource(R.string.widget_previous),
-                    size = 48.dp,
-                    onClick = onPrevious,
-                    // Lit whenever back has something to do — either a track to
-                    // step to, or enough elapsed for it to restart this one.
-                    enabled = hasPrevious || positionMs > BACK_RESTARTS_AFTER_MS,
-                    haptic = Haptic.SkipPrevious,
-                )
+                if (isPodcast) {
+                    // Podcast: ±15s skip buttons
+                    TransportGlyph(
+                        icon = Icons.Rounded.FastRewind,
+                        contentDescription = "Rewind 15 seconds",
+                        size = 48.dp,
+                        onClick = { onSeek((positionMs - 15_000L).coerceAtLeast(0L)) },
+                        haptic = Haptic.SkipPrevious,
+                    )
+                } else {
+                    TransportGlyph(
+                        icon = R.drawable.ic_player_previous,
+                        contentDescription = stringResource(R.string.widget_previous),
+                        size = 48.dp,
+                        onClick = onPrevious,
+                        // Lit whenever back has something to do — either a track to
+                        // step to, or enough elapsed for it to restart this one.
+                        enabled = hasPrevious || positionMs > BACK_RESTARTS_AFTER_MS,
+                        haptic = Haptic.SkipPrevious,
+                    )
+                }
                 // While the stream URL resolves and buffers, the play glyph
                 // would be a lie — show progress instead.
                 if (isLoading || audioVersionSwitching) {
@@ -3348,14 +3365,65 @@ fun NowPlayingScreen(
                         haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
                     )
                 }
-                TransportGlyph(
-                    icon = R.drawable.ic_player_next,
-                    contentDescription = stringResource(R.string.widget_next),
-                    size = 48.dp,
-                    onClick = onNext,
-                    enabled = hasNext,
-                    haptic = Haptic.SkipNext,
-                )
+                if (isPodcast) {
+                    // Podcast: ±15s skip + speed control
+                    TransportGlyph(
+                        icon = Icons.Rounded.FastForward,
+                        contentDescription = "Forward 15 seconds",
+                        size = 48.dp,
+                        onClick = { onSeek((positionMs + 15_000L).coerceAtMost(durationMs)) },
+                        haptic = Haptic.SkipNext,
+                    )
+                } else {
+                    TransportGlyph(
+                        icon = R.drawable.ic_player_next,
+                        contentDescription = stringResource(R.string.widget_next),
+                        size = 48.dp,
+                        onClick = onNext,
+                        enabled = hasNext,
+                        haptic = Haptic.SkipNext,
+                    )
+                }
+            }
+
+            // Podcast speed control row
+            if (isPodcast) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 32.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Rounded.Speed,
+                        contentDescription = "Playback speed",
+                        tint = Color.White.copy(alpha = 0.55f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    podcastSpeedOptions.forEach { speed ->
+                        val selected = playbackSpeed == speed
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    if (selected) Color.White.copy(alpha = 0.15f)
+                                    else Color.Transparent,
+                                )
+                                .clickable { AppSettings.setPlaybackSpeed(speed) }
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                text = "${speed}x",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) Color.White
+                                else Color.White.copy(alpha = 0.55f),
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
+                    }
+                }
             }
 
             // Keep the volume slot's full footprint when its contents are
@@ -3734,6 +3802,10 @@ private fun WidePlayerControls(
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    // Podcast detection: podcast episodes have HTTP(S) URLs as videoId
+    val isPodcast = song.videoId.startsWith("http")
+    val playbackSpeed by AppSettings.playbackSpeed.collectAsStateWithLifecycle()
+    val podcastSpeedOptions = listOf(0.5f, 1f, 1.25f, 1.5f, 2f)
 
     val liveFraction = if (durationMs > 0) {
         (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
@@ -3830,14 +3902,24 @@ private fun WidePlayerControls(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TransportGlyph(
-                    icon = R.drawable.ic_player_previous,
-                    contentDescription = stringResource(R.string.widget_previous),
-                    size = 48.dp,
-                    onClick = onPrevious,
-                    enabled = hasPrevious || positionMs > BACK_RESTARTS_AFTER_MS,
-                    haptic = Haptic.SkipPrevious,
-                )
+                if (isPodcast) {
+                    TransportGlyph(
+                        icon = Icons.Rounded.FastRewind,
+                        contentDescription = "Rewind 15 seconds",
+                        size = 48.dp,
+                        onClick = { onSeekFraction(((positionMs - 15_000L).coerceAtLeast(0L)).toFloat() / durationMs.coerceAtLeast(1L).toFloat()) },
+                        haptic = Haptic.SkipPrevious,
+                    )
+                } else {
+                    TransportGlyph(
+                        icon = R.drawable.ic_player_previous,
+                        contentDescription = stringResource(R.string.widget_previous),
+                        size = 48.dp,
+                        onClick = onPrevious,
+                        enabled = hasPrevious || positionMs > BACK_RESTARTS_AFTER_MS,
+                        haptic = Haptic.SkipPrevious,
+                    )
+                }
                 if (isLoading) {
                     Box(Modifier.size(100.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(
@@ -3858,14 +3940,64 @@ private fun WidePlayerControls(
                         haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
                     )
                 }
-                TransportGlyph(
-                    icon = R.drawable.ic_player_next,
-                    contentDescription = stringResource(R.string.widget_next),
-                    size = 48.dp,
-                    onClick = onNext,
-                    enabled = hasNext,
-                    haptic = Haptic.SkipNext,
-                )
+                if (isPodcast) {
+                    TransportGlyph(
+                        icon = Icons.Rounded.FastForward,
+                        contentDescription = "Forward 15 seconds",
+                        size = 48.dp,
+                        onClick = { onSeekFraction(((positionMs + 15_000L).coerceAtMost(durationMs)).toFloat() / durationMs.coerceAtLeast(1L).toFloat()) },
+                        haptic = Haptic.SkipNext,
+                    )
+                } else {
+                    TransportGlyph(
+                        icon = R.drawable.ic_player_next,
+                        contentDescription = stringResource(R.string.widget_next),
+                        size = 48.dp,
+                        onClick = onNext,
+                        enabled = hasNext,
+                        haptic = Haptic.SkipNext,
+                    )
+                }
+            }
+
+            // Podcast speed control row
+            if (isPodcast) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 32.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Rounded.Speed,
+                        contentDescription = "Playback speed",
+                        tint = Color.White.copy(alpha = 0.55f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    podcastSpeedOptions.forEach { speed ->
+                        val selected = playbackSpeed == speed
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    if (selected) Color.White.copy(alpha = 0.15f)
+                                    else Color.Transparent,
+                                )
+                                .clickable { AppSettings.setPlaybackSpeed(speed) }
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                text = "${speed}x",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) Color.White
+                                else Color.White.copy(alpha = 0.55f),
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
+                    }
+                }
             }
 
             // Preserve the same vertical rhythm whether the volume control is
