@@ -1334,6 +1334,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             }
+            // What's Your Mood section — mood/genre cards at the bottom of home
+            launch {
+                try {
+                    YtMusicRepository.moodAndGenres().onSuccess { sections ->
+                        if (isCurrentHomeLoad(identity, generation) && sections.isNotEmpty()) {
+                            val moodItems = sections.flatMap { section ->
+                                section.items.map { mood ->
+                                    ShelfItem(
+                                        title = mood.title,
+                                        subtitle = section.title,
+                                        thumbnailUrl = mood.thumbnailUrl,
+                                        videoId = null,
+                                        browseId = mood.browseId,
+                                    )
+                                }
+                            }.take(20)
+                            if (moodItems.isNotEmpty()) {
+                                publishHomeShelves(listOf(
+                                    HomeShelf(
+                                        title = "What's Your Mood",
+                                        subtitle = "Explore by mood and genre",
+                                        items = moodItems,
+                                    )
+                                ))
+                            }
+                        }
+                    }
+                } catch (_: Exception) { }
+            }
         }
     }
 

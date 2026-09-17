@@ -3,6 +3,8 @@ package com.music.bitchord.data.podcasts
 import android.net.Uri
 import android.util.Log
 import com.music.bitchord.data.Http
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.Request
@@ -20,7 +22,7 @@ object PodcastApi {
     /**
      * Search iTunes for podcasts. Matches reference: searchITunes(term, 'podcast', 'podcast', limit, country)
      */
-    suspend fun search(term: String, country: String = "US", limit: Int = 50): List<PodcastResult> {
+    suspend fun search(term: String, country: String = "US", limit: Int = 50): List<PodcastResult> = withContext(Dispatchers.IO) {
         val url = Uri.parse(BASE_URL).buildUpon()
             .appendQueryParameter("term", term)
             .appendQueryParameter("media", "podcast")
@@ -30,7 +32,7 @@ object PodcastApi {
             .build()
             .toString()
 
-        return try {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "UvyTunes/1.0")
@@ -38,7 +40,7 @@ object PodcastApi {
                 .build()
 
             val response = Http.client.newCall(request).execute()
-            val body = response.body?.string() ?: return emptyList()
+            val body = response.body?.string() ?: return@withContext emptyList()
             val searchResponse = json.decodeFromString<PodcastSearchResponse>(body)
             searchResponse.results.map { it.toPodcast() }
         } catch (e: Exception) {
@@ -51,7 +53,7 @@ object PodcastApi {
      * Look up episodes for a podcast. Matches reference: getPodcastEpisodes(collectionId, limit)
      * Uses iTunes Lookup API with entity=podcastEpisode.
      */
-    suspend fun lookupEpisodes(collectionId: String, country: String = "US", limit: Int = 200): List<RawPodcastResult> {
+    suspend fun lookupEpisodes(collectionId: String, country: String = "US", limit: Int = 200): List<RawPodcastResult> = withContext(Dispatchers.IO) {
         val url = Uri.parse(LOOKUP_URL).buildUpon()
             .appendQueryParameter("id", collectionId)
             .appendQueryParameter("entity", "podcastEpisode")
@@ -60,7 +62,7 @@ object PodcastApi {
             .build()
             .toString()
 
-        return try {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "UvyTunes/1.0")
@@ -68,7 +70,7 @@ object PodcastApi {
                 .build()
 
             val response = Http.client.newCall(request).execute()
-            val body = response.body?.string() ?: return emptyList()
+            val body = response.body?.string() ?: return@withContext emptyList()
             val lookupResponse = json.decodeFromString<PodcastSearchResponse>(body)
             lookupResponse.results
         } catch (e: Exception) {
@@ -80,13 +82,13 @@ object PodcastApi {
     /**
      * Look up a podcast by ID to get its metadata (feedUrl, etc.)
      */
-    suspend fun lookupPodcast(itunesId: String): PodcastResult? {
+    suspend fun lookupPodcast(itunesId: String): PodcastResult? = withContext(Dispatchers.IO) {
         val url = Uri.parse(LOOKUP_URL).buildUpon()
             .appendQueryParameter("id", itunesId)
             .build()
             .toString()
 
-        return try {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "UvyTunes/1.0")
@@ -94,7 +96,7 @@ object PodcastApi {
                 .build()
 
             val response = Http.client.newCall(request).execute()
-            val body = response.body?.string() ?: return null
+            val body = response.body?.string() ?: return@withContext null
             val lookupResponse = json.decodeFromString<PodcastSearchResponse>(body)
             lookupResponse.results.firstOrNull()?.toPodcast()
         } catch (e: Exception) {
@@ -114,7 +116,7 @@ object PodcastApi {
      * Search for podcast episodes directly. Matches reference: searchPodcastEpisodes(term, limit)
      * Searches both IN and US storefronts and merges results.
      */
-    suspend fun searchEpisodes(term: String, limit: Int = 50): List<PodcastEpisode> {
+    suspend fun searchEpisodes(term: String, limit: Int = 50): List<PodcastEpisode> = withContext(Dispatchers.IO) {
         val url = Uri.parse(BASE_URL).buildUpon()
             .appendQueryParameter("term", term)
             .appendQueryParameter("media", "podcast")
@@ -123,7 +125,7 @@ object PodcastApi {
             .build()
             .toString()
 
-        return try {
+        try {
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "UvyTunes/1.0")
@@ -131,7 +133,7 @@ object PodcastApi {
                 .build()
 
             val response = Http.client.newCall(request).execute()
-            val body = response.body?.string() ?: return emptyList()
+            val body = response.body?.string() ?: return@withContext emptyList()
             val searchResponse = json.decodeFromString<PodcastSearchResponse>(body)
             searchResponse.results
                 .filter { it.wrapperType == "podcastEpisode" }

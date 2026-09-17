@@ -102,6 +102,8 @@ object RssParser {
                             "pubDate" -> pubDate = text
                             "link" -> link = text
                             "itunes:duration", "duration" -> if (duration.isEmpty()) duration = text
+                            "itunes:episode", "episode" -> episodeNumber = text.toIntOrNull() ?: 0
+                            "itunes:season", "season" -> seasonNumber = text.toIntOrNull() ?: 0
                         }
                     }
                 }

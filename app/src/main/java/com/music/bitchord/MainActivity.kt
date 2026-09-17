@@ -3665,6 +3665,7 @@ private fun BitChordApp(
                         title = episode.title,
                         artist = podcastDetailTitle,
                         thumbnailUrl = episode.imageUrl.ifBlank { podcastDetailArtwork },
+                        durationText = episode.displayDuration.ifBlank { null },
                     )
                     playRadio(song, QueueSource("Podcast", PlaybackSourceType.SEARCH, episode.audioUrl))
                     if (!playerDocked) showNowPlaying = true
