@@ -49,6 +49,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.music.bitchord.data.podcasts.PodcastApi
+import com.music.bitchord.data.podcasts.PodcastEpisode
 import com.music.bitchord.data.podcasts.PodcastLibrary
 import com.music.bitchord.data.podcasts.PodcastResult
 import com.music.bitchord.data.podcasts.RawPodcastResult

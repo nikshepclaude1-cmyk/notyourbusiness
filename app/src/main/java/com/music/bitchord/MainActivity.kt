@@ -220,6 +220,7 @@ import com.music.bitchord.ui.screens.LibraryScreen
 import com.music.bitchord.ui.screens.MoodGenrePlaylistsScreen
 import com.music.bitchord.ui.screens.PodcastDetailScreen
 import com.music.bitchord.ui.screens.PodcastsScreen
+import com.music.bitchord.data.podcasts.PodcastEpisode
 import com.music.bitchord.ui.screens.SearchScreen
 import com.music.bitchord.data.settings.SongSort
 import com.music.bitchord.ui.replay.ReplayScreen

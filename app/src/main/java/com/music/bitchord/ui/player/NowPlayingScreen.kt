@@ -111,7 +111,6 @@ import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Translate
@@ -3325,7 +3324,7 @@ fun NowPlayingScreen(
                 if (isPodcast) {
                     // Podcast: ±15s skip buttons
                     TransportGlyph(
-                        icon = Icons.Rounded.FastRewind,
+                        icon = R.drawable.ic_podcast_rewind,
                         contentDescription = "Rewind 15 seconds",
                         size = 48.dp,
                         onClick = { onSeek((positionMs - 15_000L).coerceAtLeast(0L)) },
@@ -3368,7 +3367,7 @@ fun NowPlayingScreen(
                 if (isPodcast) {
                     // Podcast: ±15s skip + speed control
                     TransportGlyph(
-                        icon = Icons.Rounded.FastForward,
+                        icon = R.drawable.ic_podcast_forward,
                         contentDescription = "Forward 15 seconds",
                         size = 48.dp,
                         onClick = { onSeek((positionMs + 15_000L).coerceAtMost(durationMs)) },
@@ -3396,7 +3395,7 @@ fun NowPlayingScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Rounded.Speed,
+                        painter = painterResource(R.drawable.ic_podcast_speed),
                         contentDescription = "Playback speed",
                         tint = Color.White.copy(alpha = 0.55f),
                         modifier = Modifier.size(16.dp),
@@ -3904,7 +3903,7 @@ private fun WidePlayerControls(
             ) {
                 if (isPodcast) {
                     TransportGlyph(
-                        icon = Icons.Rounded.FastRewind,
+                        icon = R.drawable.ic_podcast_rewind,
                         contentDescription = "Rewind 15 seconds",
                         size = 48.dp,
                         onClick = { onSeekFraction(((positionMs - 15_000L).coerceAtLeast(0L)).toFloat() / durationMs.coerceAtLeast(1L).toFloat()) },
@@ -3942,7 +3941,7 @@ private fun WidePlayerControls(
                 }
                 if (isPodcast) {
                     TransportGlyph(
-                        icon = Icons.Rounded.FastForward,
+                        icon = R.drawable.ic_podcast_forward,
                         contentDescription = "Forward 15 seconds",
                         size = 48.dp,
                         onClick = { onSeekFraction(((positionMs + 15_000L).coerceAtMost(durationMs)).toFloat() / durationMs.coerceAtLeast(1L).toFloat()) },
@@ -3970,7 +3969,7 @@ private fun WidePlayerControls(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Rounded.Speed,
+                        painter = painterResource(R.drawable.ic_podcast_speed),
                         contentDescription = "Playback speed",
                         tint = Color.White.copy(alpha = 0.55f),
                         modifier = Modifier.size(16.dp),
