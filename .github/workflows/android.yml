@@ -77,7 +77,7 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Prod Release APK
+    - name: Build Prod Release APK (arm64-v8a only)
       run: ./gradlew assembleProdRelease
 
     - name: List built APKs
@@ -94,7 +94,7 @@ jobs:
         ls *.apk >> "$GITHUB_OUTPUT"
         echo "EOF" >> "$GITHUB_OUTPUT"
 
-    - name: Upload APKs
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: UvyTunes-APKs
@@ -107,6 +107,13 @@ jobs:
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "Building version: $VERSION"
 
+    - name: Delete existing release if present
+      continue-on-error: true
+      run: |
+        gh release delete "v${{ steps.version.outputs.version }}" --yes --cleanup-tag || true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
@@ -115,17 +122,8 @@ jobs:
         body: |
           ## UvyTunes v${{ steps.version.outputs.version }}
 
-          ### What's New
-          - SHORTS mode: iTunes preview playback
-          - UvyTunes branding
-
-          ### APK Variants
-          - **Universal** - Works on all devices
-          - **arm64-v8a** - For most modern phones (64-bit)
-          - **armeabi-v7a** - For older phones (32-bit)
-
           ### Installation
-          1. Download the APK for your device architecture
+          1. Download the APK below
           2. Enable "Install from unknown sources" if prompted
           3. Install and enjoy!
         files: release-apks/*.apk
