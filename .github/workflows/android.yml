@@ -83,13 +83,20 @@ jobs:
     - name: List built APKs
       run: find app/build/outputs/apk -name "*.apk" -exec ls -lh {} \;
 
-    - name: Collect APKs
-      id: collect
+    - name: Rename APK to uvytunes-{commit}-{date}.apk
+      id: rename
       run: |
+        COMMIT_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+        DATE=$(date -u +%Y%m%d)
         mkdir -p release-apks
-        find app/build/outputs/apk -name "*.apk" -exec cp {} release-apks/ \;
+        for apk in $(find app/build/outputs/apk -name "*.apk"); do
+          NEW_NAME="uvytunes-${COMMIT_SHORT}-${DATE}.apk"
+          cp "$apk" "release-apks/${NEW_NAME}"
+          echo "Renamed: $apk -> release-apks/${NEW_NAME}"
+        done
         cd release-apks
         ls -lh
+        echo "apk_name=${NEW_NAME}" >> "$GITHUB_OUTPUT"
         echo "files<<EOF" >> "$GITHUB_OUTPUT"
         ls *.apk >> "$GITHUB_OUTPUT"
         echo "EOF" >> "$GITHUB_OUTPUT"
