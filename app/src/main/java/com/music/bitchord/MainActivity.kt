@@ -2480,6 +2480,17 @@ private fun BitChordApp(
                                 podcastDetailItunesId = itunesId
                                 showPodcastDetail = true
                             },
+                            onPlayEpisode = { episode ->
+                                val song = Song(
+                                    videoId = episode.audioUrl,
+                                    title = episode.title,
+                                    artist = podcastDetailTitle.ifBlank { "Podcast" },
+                                    thumbnailUrl = episode.imageUrl.ifBlank { podcastDetailArtwork },
+                                    durationText = episode.displayDuration.ifBlank { null },
+                                )
+                                playRadio(song, QueueSource("Podcast", PlaybackSourceType.SEARCH, episode.audioUrl))
+                                if (!playerDocked) showNowPlaying = true
+                            },
                         )
                         TAB_SEARCH -> SearchScreen(
                             query = query,

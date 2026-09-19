@@ -146,7 +146,7 @@ fun PodcastsScreen(
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(48.dp))
                         Text(
-                            text = stringResource(R.string.loading),
+                            text = "Loading…",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 16.dp),
@@ -216,7 +216,7 @@ fun PodcastsScreen(
                                             onOpenPodcast(
                                                 savedItem.title,
                                                 savedItem.feedUrl ?: "",
-                                                savedItem.artworkUrl,
+                                                savedItem.artworkUrl ?: "",
                                                 savedItem.itunesId,
                                             )
                                         }
@@ -258,7 +258,7 @@ fun PodcastsScreen(
                         if (!state.loading && !state.loadingMore && state.shelves.isNotEmpty()) {
                             item(key = "end") {
                                 Text(
-                                    text = stringResource(R.string.you_re_all_caught_up),
+                                    text = "You're all caught up!",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
